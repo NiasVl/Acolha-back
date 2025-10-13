@@ -1,0 +1,1 @@
+Apenas use middleware para rotas pessoais como perfil por exemplo
