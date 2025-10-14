@@ -112,7 +112,7 @@ app.post('/acolha/v1/add_empresa', async (req, res) => {
 
     try {
         const result = await addEmpresa(empresa);
-        res.status(201).json({ mensagem: "Empresa inserida com sucesso", empresa: result });
+        res.status(201).json({ mensagem: "Empresa registrada com sucesso, fique atento ao seu Email, após passar por análise mandaremos um Email dizendo se a empresa foi ACEITA ou NÃO.", empresa: result });
 
         
     } catch (err) {
