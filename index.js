@@ -11,13 +11,18 @@ import { conexao, testarConexao } from "./src/DAO/conn.js";
 
 import { addUsuario } from "./src/DAO/usuario/addUsuarios.js";
 import { buscarUsuarios } from "./src/DAO/usuario/buscarUsuarios.js";
+import { deletarUsuario } from "./src/DAO/usuario/deleteUsuario.js";
 
 import { addEmpresa } from "./src/DAO/empresa/addEmpresa.js";
 import { buscarEmpresas } from "./src/DAO/empresa/buscarEmpresas.js";
-import { deletarUsuario } from "./src/DAO/usuario/deleteUsuario.js";
+import { aprovarEmpresa } from "./src/DAO/empresa/aprovarEmpresa.js";
+import { deletarEmpresa } from "./src/DAO/empresa/deletarEmpresa.js";
+import { criarVagas } from "./src/DAO/empresa/criarVagas.js";
+import { buscarVagas } from "./src/DAO/empresa/buscarVagas.js";
 
 import { autenticarToken } from "./src/DAO/middleware/Auth.js";
 import gerarTokens from "./src/DAO/auth/gerarTokens.js";
+import gerarTokensEmpresas from "./src/DAO/auth/gerarTokensEmpresas.js";
 
 dotenv.config();
 
@@ -29,7 +34,7 @@ app.use(
 
 app.use(express.json());
 
-app.post("/acolha/v1/login", async (req, res) => {
+app.post("/acolha/v1/login_usuario", async (req, res) => {
   const { email, senha } = req.body;
 
   if (!email || !senha) {
@@ -74,33 +79,45 @@ app.post("/acolha/v1/login", async (req, res) => {
   }
 });
 
+app.post("/acolha/v1/login_empresa", async (req, res) => {
+  const { email, senha } = req.body;
+
+  if (!email || !senha) {
+    return res.status(400).json({ erro: "Email e senha são obrigatórios" });
+  }
+
+  try {
+    const empresas = await buscarEmpresas();
+    const empresa = empresas.find((u) => u.emailEmpresa.toLowerCase() === email.toLowerCase());
+
+    if (!empresa) {
+      return res.status(401).json({ erro: "Email ou senha inválidos" });
+    }
+
+    const senhaCorreta = await bcrypt.compare(senha, empresa.senhaEmpresa);
+    if (!senhaCorreta) {
+      return res.status(401).json({ erro: "Email ou senha inválidos" });
+    }
+
+    // Gera tokens
+    const { accessToken, refreshToken } = gerarTokensEmpresas(empresa);
+
+    return res.status(200).json({
+      mensagem: "Login bem-sucedido",
+      accessToken,
+      refreshToken,
+    });
+  } catch (err) {
+    console.error("Erro ao buscar empresas:", err);
+    res.status(500).json({ erro: "Erro interno ao buscar empresas" });
+  }
+});
+
 // USUARIO
 
 app.get("/acolha/v1/buscar_usuarios", async (req, res) => {
   let usuarios = await buscarUsuarios();
   res.status(200).json(usuarios);
-})
-
-app.get("/acolha/v1/buscar_empresas", async (req, res) => {
-  let empresas = await buscarEmpresas();
-  res.status(200).json(empresas);
-})
-
-app.post("/acolha/v1/delete_usuario", async (req, res) => {
-  const { id } = req.body;
-
-  if (!id) {
-    return res.status(400).json({ erro: "ID do usuário é obrigatório" });
-  }
-
-  try {
-    await deletarUsuario(id);
-    res.status(200).json({ mensagem: "Usuário deletado com sucesso" });
-  }
-  catch (err) {
-    console.error("Erro ao deletar usuário:", err);
-    res.status(500).json({ erro: "Erro interno ao deletar usuário" });
-  }
 })
 
 app.post("/acolha/v1/add_usuarios", async (req, res) => {
@@ -113,11 +130,14 @@ app.post("/acolha/v1/add_usuarios", async (req, res) => {
       !email ||
       !senha ||
       !nacionalidade ||
-      !cpf ||
       !telefone ||
       !dataNasc
     ) {
       return res.status(400).json({ erro: "Todos os campos são obrigatórios" });
+    }
+
+    if (cpf == undefined || cpf === null) {
+      cpf = "none";
     }
 
     const usuario = {
@@ -143,6 +163,23 @@ app.post("/acolha/v1/add_usuarios", async (req, res) => {
     res.status(500).json({ erro: "Erro interno ao inserir usuário" });
   }
 });
+
+app.post("/acolha/v1/delete_usuario", async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ erro: "ID do usuário é obrigatório" });
+  }
+
+  try {
+    await deletarUsuario(id);
+    res.status(200).json({ mensagem: "Usuário deletado com sucesso" });
+  }
+  catch (err) {
+    console.error("Erro ao deletar usuário:", err);
+    res.status(500).json({ erro: "Erro interno ao deletar usuário" });
+  }
+})
 
 // EMPRESA
 
@@ -204,7 +241,85 @@ app.post("/acolha/v1/add_empresa", async (req, res) => {
   }
 });
 
+app.get("/acolha/v1/buscar_empresas", async (req, res) => {
+  let empresas = await buscarEmpresas();
+  res.status(200).json(empresas);
+})
 
+app.patch("/acolha/v1/aprovar_empresa", async (req, res) => {
+  const { id } = req.body;
+  
+  if (!id) {
+    return res.status(400).json({ erro: "ID da empresa é obrigatório" });
+  }
+
+  try {
+    const result = await aprovarEmpresa(id);
+    res.status(200).json({ mensagem: "Empresa aprovada com sucesso", empresa: result });
+  }
+  catch (err) {
+    console.error("Erro ao aprovar empresa:", err);
+    res.status(500).json({ erro: "Erro interno ao aprovar empresa" });
+  }
+
+
+
+})
+
+app.post("/acolha/v1/delete_empresa", async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ erro: "ID da empresa é obrigatório" });
+  }
+
+  try {
+    await deletarEmpresa(id);
+    res.status(200).json({ mensagem: "Empresa deletada com sucesso" });
+  }
+  catch (err) {
+    console.error("Erro ao deletar empresa:", err);
+    res.status(500).json({ erro: "Erro interno ao deletar empresa" });
+  }
+})
+
+app.post("/acolha/v1/criar_vaga", async (req, res) => {
+    const { empresa_id, titulo, descricao, salario, local } = req.body;
+
+    if (!empresa_id || !titulo) {
+        return res.status(400).json({ erro: "Dados incompletos" });
+    }
+
+    try {
+        const result = await criarVagas(empresa_id, titulo, descricao, salario, local);
+        
+
+        res.status(201).json({ mensagem: "Vaga criada com sucesso", id: result.insertId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: "Erro ao criar vaga" });
+    }
+}
+);
+
+app.post("/acolha/v1/vagas_empresa", (req, res) => {
+
+  const { empresa_id } = req.body;
+
+  if (!empresa_id) {
+      return res.status(400).json({ erro: "ID da empresa é obrigatório" });
+  }
+
+  buscarVagas(empresa_id)
+      .then(vagas => {
+          res.status(200).json(vagas);
+      })
+      .catch(err => {
+          console.error("Erro ao buscar vagas:", err);
+          res.status(500).json({ erro: "Erro interno ao buscar vagas" });
+      });
+
+})
 
 // OUTROS
 
