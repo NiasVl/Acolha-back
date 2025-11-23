@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 
 export default function gerarTokens(empresa) {
   const accessToken = jwt.sign(
-    { id: empresa.id, nome: empresa.nomeEmpresa, email: empresa.emailEmpresa },
+    { id: empresa.id, nome: empresa.nomeEmpresa, email: empresa.emailEmpresa, role: empresa.role },
     process.env.JWT_SECRET,
     { expiresIn: '15m' } 
   );
